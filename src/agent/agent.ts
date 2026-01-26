@@ -8,6 +8,8 @@ import { buildSystemPrompt, buildIterationPrompt, buildFinalAnswerPrompt, buildT
 import { extractTextContent, hasToolCalls } from '../utils/ai-message.js';
 import { streamLlmResponse } from '../utils/llm-stream.js';
 import { InMemoryChatHistory } from '../utils/in-memory-chat-history.js';
+import { estimateTokens, getTokenBudget } from '../utils/token-counter.js';
+import { compactJson } from '../utils/data-compactor.js';
 import type { AgentConfig, AgentEvent, ToolStartEvent, ToolEndEvent, ToolErrorEvent, ToolSummary, AnswerStartEvent, AnswerChunkEvent } from '../agent/types.js';
 
 
@@ -302,7 +304,8 @@ export class Agent {
   }
 
   /**
-   * Build initial prompt with conversation history context if available
+   * Build initial prompt with conversation history context if available.
+   * Limits history to most recent messages to prevent token overflow.
    */
   private buildInitialPrompt(
     query: string,
@@ -317,8 +320,18 @@ export class Agent {
       return query;
     }
 
-    const historyContext = userMessages.map((msg, i) => `${i + 1}. ${msg}`).join('\n');
-    return `Current query to answer: ${query}\n\nPrevious user queries for context:\n${historyContext}`;
+    // Limit to last 5 messages to prevent context overflow
+    const MAX_HISTORY_MESSAGES = 5;
+    const recentMessages = userMessages.slice(-MAX_HISTORY_MESSAGES);
+
+    const historyContext = recentMessages.map((msg, i) => `${i + 1}. ${msg}`).join('\n');
+
+    // Add note if history was truncated
+    const truncationNote = userMessages.length > MAX_HISTORY_MESSAGES
+      ? `\n(Showing last ${MAX_HISTORY_MESSAGES} of ${userMessages.length} queries)`
+      : '';
+
+    return `Current query to answer: ${query}\n\nPrevious user queries for context:\n${historyContext}${truncationNote}`;
   }
 
   /**
@@ -331,8 +344,8 @@ export class Agent {
   ): AsyncGenerator<AnswerStartEvent | AnswerChunkEvent> {
     yield { type: 'answer_start' };
 
-    // Load full context data from disk
-    const fullContext = this.buildFullContextForAnswer(summaries);
+    // Load full context data from disk with query-aware compaction
+    const fullContext = this.buildFullContextForAnswer(summaries, query);
 
     // Build the final answer prompt
     const prompt = buildFinalAnswerPrompt(query, fullContext);
@@ -351,8 +364,10 @@ export class Agent {
   /**
    * Build full context data for final answer generation.
    * Loads full tool results from disk using the summaries' file pointers.
+   * Uses token-aware and query-aware compaction to prevent context overflow
+   * while preserving data relevant to the query.
    */
-  private buildFullContextForAnswer(summaries: ToolSummary[]): string {
+  private buildFullContextForAnswer(summaries: ToolSummary[], query: string): string {
     if (summaries.length === 0) {
       return 'No data was gathered.';
     }
@@ -373,10 +388,48 @@ export class Agent {
       return 'Failed to load context data.';
     }
 
-    // Format contexts for the prompt
-    return contexts.map(ctx => {
+    // Get token budget for this model
+    const budget = getTokenBudget(this.model);
+    const totalBudget = budget.toolResults;
+    const perResultBudget = Math.min(
+      budget.perToolResult,
+      Math.floor(totalBudget / contexts.length)
+    );
+
+    // Format and compact each context
+    const formattedContexts: string[] = [];
+    let totalTokens = 0;
+
+    for (const ctx of contexts) {
       const description = this.contextManager.getToolDescription(ctx.toolName, ctx.args);
-      return `### ${description}\n\`\`\`json\n${JSON.stringify(JSON.parse(ctx.result), null, 2)}\n\`\`\``;
-    }).join('\n\n');
+
+      // Compact the JSON data to fit within budget
+      // Use query-aware filtering to keep relevant date ranges
+      const compactedData = compactJson(ctx.result, {
+        maxTokens: perResultBudget,
+        maxArrayLength: 100, // Keep ~100 data points for good analysis coverage
+        removeVerboseFields: true,
+        truncateUrls: true,
+        minify: true, // No pretty-printing - saves ~25% tokens
+        query, // Enable query-aware filtering
+      });
+
+      const formatted = `### ${description}\n${compactedData}`;
+      const tokens = estimateTokens(formatted, 'json');
+
+      // Stop adding if we exceed total budget
+      if (totalTokens + tokens > totalBudget) {
+        // Add a note about truncation
+        formattedContexts.push(
+          `### Note\n[Additional ${contexts.length - formattedContexts.length} data sources omitted to fit context window]`
+        );
+        break;
+      }
+
+      formattedContexts.push(formatted);
+      totalTokens += tokens;
+    }
+
+    return formattedContexts.join('\n\n');
   }
 }

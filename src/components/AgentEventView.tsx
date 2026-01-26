@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { colors } from '../theme.js';
+import { colors, symbols } from '../theme.js';
 import type { AgentEvent } from '../agent/types.js';
 
 /**
@@ -78,13 +78,13 @@ interface ThinkingViewProps {
 
 export function ThinkingView({ message }: ThinkingViewProps) {
   // Truncate long thinking messages
-  const displayMessage = message.length > 200 
-    ? message.slice(0, 200) + '...' 
+  const displayMessage = message.length > 200
+    ? message.slice(0, 200) + '...'
     : message;
-  
+
   return (
     <Box>
-      <Text color={colors.primary}>⏺ </Text>
+      <Text color={colors.highlight}>{symbols.diamond} </Text>
       <Text color={colors.white}>{displayMessage}</Text>
     </Box>
   );
@@ -100,17 +100,17 @@ export function ToolStartView({ tool, args, isActive = false }: ToolStartViewPro
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={colors.primary}>⏺ </Text>
-        <Text color={colors.info}>{formatToolName(tool)}</Text>
-        <Text color={colors.muted}>({formatArgs(args)})</Text>
+        <Text color={colors.primary}>{symbols.bullet} </Text>
+        <Text color={colors.info} bold>{formatToolName(tool)}</Text>
+        <Text color={colors.muted}> ({formatArgs(args)})</Text>
       </Box>
       {isActive && (
         <Box marginLeft={2}>
           <Text color={colors.muted}>⎿  </Text>
-          <Text color={colors.primary}>
+          <Text color={colors.gold}>
             <Spinner type="dots" />
           </Text>
-          <Text color={colors.muted}> Searching...</Text>
+          <Text color={colors.muted}> Fetching data...</Text>
         </Box>
       )}
     </Box>
@@ -127,21 +127,29 @@ interface ToolEndViewProps {
 export function ToolEndView({ tool, args, result, duration }: ToolEndViewProps) {
   // Parse result to get a summary
   let summary = 'Received data';
+  let icon: string = symbols.check;
+  let iconColor: string = colors.success;
+
   try {
     const parsed = JSON.parse(result);
     if (parsed.data) {
       if (Array.isArray(parsed.data)) {
         summary = `Received ${parsed.data.length} items`;
+        icon = symbols.sparkle;
       } else if (typeof parsed.data === 'object') {
         const keys = Object.keys(parsed.data).filter(k => !k.startsWith('_')); // Exclude _errors
-        
-        // Tool-specific summaries
+
+        // Tool-specific summaries with fun icons
         if (tool === 'financial_search') {
-          summary = keys.length === 1 
-            ? `Called 1 data source` 
+          summary = keys.length === 1
+            ? `Called 1 data source`
             : `Called ${keys.length} data sources`;
+          icon = symbols.chart;
+          iconColor = colors.gold;
         } else if (tool === 'web_search') {
-          summary = `Did 1 search`;
+          summary = `Found results`;
+          icon = symbols.sparkle;
+          iconColor = colors.accent;
         } else {
           summary = `Received ${keys.length} fields`;
         }
@@ -151,16 +159,17 @@ export function ToolEndView({ tool, args, result, duration }: ToolEndViewProps) 
     // Not JSON, use truncated result
     summary = truncateResult(result, 50);
   }
-  
+
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={colors.primary}>⏺ </Text>
-        <Text color={colors.info}>{formatToolName(tool)}</Text>
-        <Text color={colors.muted}>({formatArgs(args)})</Text>
+        <Text color={colors.primary}>{symbols.bullet} </Text>
+        <Text color={colors.info} bold>{formatToolName(tool)}</Text>
+        <Text color={colors.muted}> ({formatArgs(args)})</Text>
       </Box>
       <Box marginLeft={2}>
         <Text color={colors.muted}>⎿  </Text>
+        <Text color={iconColor}>{icon} </Text>
         <Text color={colors.success}>{summary}</Text>
         <Text color={colors.muted}> in {formatDuration(duration)}</Text>
       </Box>
@@ -177,12 +186,12 @@ export function ToolErrorView({ tool, error }: ToolErrorViewProps) {
   return (
     <Box flexDirection="column">
       <Box>
-        <Text color={colors.primary}>⏺ </Text>
-        <Text color={colors.info}>{formatToolName(tool)}</Text>
+        <Text color={colors.primary}>{symbols.bullet} </Text>
+        <Text color={colors.info} bold>{formatToolName(tool)}</Text>
       </Box>
       <Box marginLeft={2}>
         <Text color={colors.muted}>⎿  </Text>
-        <Text color={colors.error}>Error: {truncateResult(error, 80)}</Text>
+        <Text color={colors.error}>{symbols.cross} Error: {truncateResult(error, 80)}</Text>
       </Box>
     </Box>
   );

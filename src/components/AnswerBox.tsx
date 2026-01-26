@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { colors } from '../theme.js';
+import { formatOutput } from '../utils/table-formatter.js';
 
 interface AnswerBoxProps {
   stream?: AsyncGenerator<string>;
@@ -31,7 +32,7 @@ export const AnswerBox = React.memo(function AnswerBox({ stream, text, onStart, 
 
     let collected = text || '';
     let started = false;
-    
+
     (async () => {
       try {
         for await (const chunk of stream) {
@@ -49,12 +50,21 @@ export const AnswerBox = React.memo(function AnswerBox({ stream, text, onStart, 
     })();
   }, [stream, text]);
 
+  // Apply formatting only when streaming is done (to avoid flicker during streaming)
+  const formattedContent = useMemo(() => {
+    if (isStreaming) {
+      return content;
+    }
+    // Apply table formatting and colorization
+    return formatOutput(content);
+  }, [content, isStreaming]);
+
   return (
     <Box flexDirection="column">
       <Box>
         <Text color={colors.muted}>⏺ </Text>
         <Text>
-          {content}
+          {formattedContent}
           {isStreaming && '▌'}
         </Text>
       </Box>

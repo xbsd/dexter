@@ -11,7 +11,7 @@ interface IntroProps {
 
 export function Intro({ provider, model }: IntroProps) {
   const { introWidth } = dimensions;
-  const welcomeText = 'Welcome to Dexter';
+  const welcomeText = 'Welcome to KX Trader';
   const versionText = ` v${packageJson.version}`;
   const fullText = welcomeText + versionText;
   const padding = Math.floor((introWidth - fullText.length - 2) / 2);
@@ -30,12 +30,12 @@ export function Intro({ provider, model }: IntroProps) {
       <Box marginTop={1}>
         <Text color={colors.primary} bold>
           {`
-██████╗ ███████╗██╗  ██╗████████╗███████╗██████╗ 
-██╔══██╗██╔════╝╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗
-██║  ██║█████╗   ╚███╔╝    ██║   █████╗  ██████╔╝
-██║  ██║██╔══╝   ██╔██╗    ██║   ██╔══╝  ██╔══██╗
-██████╔╝███████╗██╔╝ ██╗   ██║   ███████╗██║  ██║
-╚═════╝ ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝`}
+██╗  ██╗██╗  ██╗  ████████╗██████╗  █████╗ ██████╗ ███████╗██████╗
+██║ ██╔╝╚██╗██╔╝  ╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗
+█████╔╝  ╚███╔╝      ██║   ██████╔╝███████║██║  ██║█████╗  ██████╔╝
+██╔═██╗  ██╔██╗      ██║   ██╔══██╗██╔══██║██║  ██║██╔══╝  ██╔══██╗
+██║  ██╗██╔╝ ██╗     ██║   ██║  ██║██║  ██║██████╔╝███████╗██║  ██║
+╚═╝  ╚═╝╚═╝  ╚═╝     ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝`}
         </Text>
       </Box>
 
